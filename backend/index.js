@@ -16,6 +16,26 @@ const app = expess();
 
 const PORT = 5002;
 
+function escapeRegex(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizarNombres(nombres, apaterno, amaterno) {
+    let base = String(nombres || '').trim().replace(/\s+/g, ' ');
+    const ap = String(apaterno || '').trim().replace(/\s+/g, ' ');
+    const am = String(amaterno || '').trim().replace(/\s+/g, ' ');
+    const apellidos = [ap, am].filter(Boolean).join(' ');
+
+    if (!base || !apellidos) return base;
+
+    // Si nombres llega como "Nombres Apellido1 Apellido2", quitamos el sufijo de apellidos.
+    const suffix = new RegExp(`\\s+${escapeRegex(apellidos)}$`, 'i');
+    while (suffix.test(base)) {
+        base = base.replace(suffix, '').trim();
+    }
+    return base;
+}
+
 // Usamos cors como middleware para permitir peticiones desde el frontend.
 app.use(cors());
 
@@ -42,6 +62,19 @@ app.get('/obtenerusuarios', async (req, res) => {
     }
 });
 
+app.get('/obtenerclientes', async (req, res) => {
+    try {
+        const clientes = await query.obtenerClientes();
+        res.json(clientes);
+    } catch (error) {
+        console.error("Error en la ruta /obtenerclientes:", error);
+        res.status(500).json({
+            error: 'Error al obtener los clientes',
+            detail: error.sqlMessage || error.message,
+        });
+    }
+});
+
 app.post('/insertarUsuario', async (req, res) => {
     try {
         const { nombres, apaterno, amaterno, usuario, password, rol } = req.body;
@@ -61,6 +94,56 @@ app.post('/insertarUsuario', async (req, res) => {
         // Es buena práctica imprimir el error en consola para saber qué falló en el backend
         console.error("Error en la ruta /insertarUsuario:", error); 
         res.status(500).json({ error: 'Error al insertar el usuario' });
+    }
+});
+
+app.post('/insertarCliente', async (req, res) => {
+    try {
+        const { nombre, apaterno, amaterno } = req.body;
+        const nombresNormalizados = normalizarNombres(nombre, apaterno, amaterno);
+
+        if (!nombresNormalizados) {
+            return res.status(400).json({ error: 'Faltan datos obligatorios' });
+        }
+
+        const fkpersona = await query.insertarPersona(nombresNormalizados, apaterno || '', amaterno || '');
+        await query.insertarCliente(fkpersona);
+
+        res.status(201).json({ message: 'Cliente insertado correctamente' });
+    } catch (error) {
+        console.error("Error en la ruta /insertarCliente:", error);
+        res.status(500).json({
+            error: 'Error al insertar el cliente',
+            detail: error.sqlMessage || error.message,
+        });
+    }
+});
+
+app.put('/actualizarCliente/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nombre, apaterno, amaterno, activo } = req.body;
+        const nombresNormalizados = normalizarNombres(nombre, apaterno, amaterno);
+
+        if (!nombresNormalizados) {
+            return res.status(400).json({ error: 'Faltan datos obligatorios' });
+        }
+
+        const cliente = await query.obtenerClientePorId(id);
+        if (!cliente) {
+            return res.status(404).json({ error: 'Cliente no encontrado' });
+        }
+
+        await query.actualizarPersona(cliente.fk_persona, nombresNormalizados, apaterno || '', amaterno || '');
+        await query.actualizarCliente(id, activo === true || activo === 1 || activo === '1');
+
+        res.json({ message: 'Cliente actualizado correctamente' });
+    } catch (error) {
+        console.error("Error en la ruta /actualizarCliente/:id:", error);
+        res.status(500).json({
+            error: 'Error al actualizar el cliente',
+            detail: error.sqlMessage || error.message,
+        });
     }
 });
 
