@@ -25,10 +25,11 @@ export function DataTable({
   onAdd,
   addLabel = "Agregar",
   showStatusFilter = true,
+  initialStatusFilter = "todos",
   emptyMessage = "No hay registros que coincidan.",
 }) {
   const [query, setQuery] = useState("")
-  const [filtro, setFiltro] = useState("todos")
+  const [filtro, setFiltro] = useState(initialStatusFilter)
 
   const filtered = useMemo(() => {
     return data.filter((row) => {
@@ -77,7 +78,7 @@ export function DataTable({
                     key={f.key}
                     onClick={() => setFiltro(f.key)}
                     className={cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      "cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                       filtro === f.key
                         ? "bg-card text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground",
