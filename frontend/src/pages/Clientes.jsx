@@ -9,31 +9,61 @@ import { Field, Input, Select } from "../components/ui/Field"
 import { EstadoBadge } from "../components/ui/Badge"
 import { formatDate } from "../lib/utils"
 
-const empty = { nombre: "", telefono: "", email: "", direccion: "", activo: true }
+const empty = { nombre: "", apaterno: "", amaterno: "", activo: true }
 
 export default function Clientes() {
   const { clientes, guardarCliente } = useApp()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(empty)
+  const [saving, setSaving] = useState(false)
+  const [errorMsg, setErrorMsg] = useState("")
+  const [successCreateOpen, setSuccessCreateOpen] = useState(false)
+  const [successEditOpen, setSuccessEditOpen] = useState(false)
 
   function openNuevo() {
     setForm(empty)
+    setErrorMsg("")
     setOpen(true)
   }
   function openEditar(row) {
-    setForm({ ...row })
+    setForm({
+      ...row,
+      nombre: row.nombres ?? row.nombre ?? "",
+      apaterno: row.apaterno ?? "",
+      amaterno: row.amaterno ?? "",
+      activo: row.activo,
+    })
+    setErrorMsg("")
     setOpen(true)
   }
-  function handleSubmit(e) {
+
+  function submitForm() {
+    const formEl = document.getElementById("form-cliente")
+    if (!formEl || !formEl.reportValidity()) return
+    formEl.requestSubmit()
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
-    guardarCliente({ ...form, activo: form.activo === true || form.activo === "true" })
-    setOpen(false)
+    const creando = !form.id
+    setSaving(true)
+    setErrorMsg("")
+    const result = await guardarCliente({ ...form, activo: form.activo === true || form.activo === "true" })
+    if (result?.ok) {
+      setOpen(false)
+      if (creando) {
+        setSuccessCreateOpen(true)
+      } else {
+        setSuccessEditOpen(true)
+      }
+    } else {
+      setErrorMsg(result?.error || "No se pudo guardar el cliente.")
+    }
+    setSaving(false)
   }
 
   const columns = [
     { key: "nombre", header: "Nombre", render: (r) => <span className="font-medium">{r.nombre}</span> },
-    { key: "telefono", header: "Telefono" },
-    { key: "email", header: "Correo", render: (r) => <span className="text-muted-foreground">{r.email}</span> },
     { key: "creado", header: "Registro", render: (r) => formatDate(r.creado) },
     { key: "activo", header: "Estado", render: (r) => <EstadoBadge activo={r.activo} /> },
     {
@@ -56,42 +86,42 @@ export default function Clientes() {
         title="Lista de clientes"
         columns={columns}
         data={clientes}
-        searchKeys={["nombre", "telefono", "email", "direccion"]}
+        searchKeys={["nombre", "apaterno", "amaterno"]}
+        initialStatusFilter="activos"
         onAdd={openNuevo}
         addLabel="Nuevo cliente"
       />
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          if (saving) return
+          setOpen(false)
+        }}
         title={form.id ? "Editar cliente" : "Nuevo cliente"}
         description="Completa los datos del cliente."
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button type="submit" form="form-cliente">Guardar</Button>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button>
+            <Button type="button" onClick={submitForm} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button>
           </div>
         }
       >
         <form id="form-cliente" onSubmit={handleSubmit} className="space-y-4">
-          <Field label="Nombre completo" htmlFor="c-nombre">
+          <Field label="Nombres" htmlFor="c-nombre">
             <Input id="c-nombre" value={form.nombre} required
               onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Telefono" htmlFor="c-tel">
-              <Input id="c-tel" value={form.telefono} required
-                onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+            <Field label="Apellido Paterno" htmlFor="c-apaterno">
+              <Input id="c-apaterno" value={form.apaterno ?? ""}
+                onChange={(e) => setForm({ ...form, apaterno: e.target.value })} />
             </Field>
-            <Field label="Correo" htmlFor="c-email">
-              <Input id="c-email" type="email" value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <Field label="Apellido Materno" htmlFor="c-amaterno">
+              <Input id="c-amaterno" value={form.amaterno ?? ""}
+                onChange={(e) => setForm({ ...form, amaterno: e.target.value })} />
             </Field>
           </div>
-          <Field label="Direccion" htmlFor="c-dir">
-            <Input id="c-dir" value={form.direccion}
-              onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
-          </Field>
           <Field label="Estado" htmlFor="c-estado">
             <Select id="c-estado" value={String(form.activo)}
               onChange={(e) => setForm({ ...form, activo: e.target.value === "true" })}>
@@ -99,7 +129,38 @@ export default function Clientes() {
               <option value="false">Inactivo</option>
             </Select>
           </Field>
+          {errorMsg && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMsg}</p>
+          )}
         </form>
+      </Modal>
+
+      <Modal
+        open={successCreateOpen}
+        onClose={() => setSuccessCreateOpen(false)}
+        title="Cliente creado"
+        description="El cliente se registro correctamente."
+        footer={
+          <div className="flex justify-end">
+            <Button onClick={() => setSuccessCreateOpen(false)}>Aceptar</Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">Ya puedes ver el cliente en la lista y editarlo cuando lo necesites.</p>
+      </Modal>
+
+      <Modal
+        open={successEditOpen}
+        onClose={() => setSuccessEditOpen(false)}
+        title="Cliente actualizado"
+        description="Los datos del cliente se actualizaron correctamente."
+        footer={
+          <div className="flex justify-end">
+            <Button onClick={() => setSuccessEditOpen(false)}>Aceptar</Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">Los cambios ya se reflejan en la lista de clientes.</p>
       </Modal>
     </div>
   )

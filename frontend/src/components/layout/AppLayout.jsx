@@ -18,7 +18,7 @@ export function AppLayout() {
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-card/80 px-4 backdrop-blur sm:px-6 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="rounded-md p-2 text-foreground hover:bg-muted"
+            className="cursor-pointer rounded-md p-2 text-foreground hover:bg-muted"
             aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />
