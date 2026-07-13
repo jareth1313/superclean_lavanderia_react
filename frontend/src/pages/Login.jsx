@@ -11,13 +11,16 @@ export default function Login() {
   const [usuario, setUsuario] = useState("admin")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     setError("")
-    const res = login(usuario.trim(), password)
+    setSuccess("")
+    const res = await login(usuario.trim(), password)
     if (res.ok) {
-      navigate("/")
+      setSuccess('Inicio de sesión correcto')
+      setTimeout(() => navigate('/'), 700)
     } else {
       setError(res.error)
     }
@@ -97,6 +100,12 @@ export default function Login() {
               <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-2 text-sm text-emerald-700">
+                {success}
               </div>
             )}
 

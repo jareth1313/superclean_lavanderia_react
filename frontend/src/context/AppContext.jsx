@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import { uid } from "../lib/utils"
+
+axios.defaults.withCredentials = true
 import {
   seedUsuarios,
   seedPrendas,
@@ -86,16 +88,21 @@ export function AppProvider({ children }) {
   }
 
   // ---- Auth simulado ----
-  function login(usuario, password) {
-    const found = seedUsuarios.find(
-      (u) => u.usuario === usuario && u.activo,
-    )
-    // Credenciales de demo: cualquier usuario activo + password "demo123"
-    if (found && password === "demo123") {
-      setAuth(found)
-      return { ok: true }
+  async function login(usuario, password) {
+    // Try backend login first
+    try {
+      const { data } = await axios.post(`${BACKEND_URL}/login`, { usuario, password }, { withCredentials: true })
+      if (data?.ok) {
+        // Normalize minimal auth shape
+        const u = data.user
+        setAuth({ id: u.id, usuario: u.usuario, rol: u.rol })
+        return { ok: true }
+      }
+      return { ok: false, error: data?.error || 'Usuario o contrasena incorrectos.' }
+    } catch (error) {
+      console.error('Login error', error)
+      return { ok: false, error: error.response?.data?.error || error.message || 'Error al iniciar sesion.' }
     }
-    return { ok: false, error: "Usuario o contrasena incorrectos." }
   }
 
   function logout() {
@@ -137,29 +144,55 @@ export function AppProvider({ children }) {
 
   // ---- Usuarios ----
   async function guardarUsuario(data) {
-    if (data.id) {
-      setUsuarios((prev) => prev.map((u) => (u.id === data.id ? { ...u, ...data } : u)))
-      return { ok: true }
-    }
-
     try {
       const payload = {
         nombres: data.nombre,
         apaterno: data.apaterno ?? "",
         amaterno: data.amaterno ?? "",
         usuario: data.usuario,
-        password: data.password,
         rol: data.rol,
+        activo: data.activo ?? true,
+      }
+
+      if (data.password !== undefined && data.password !== null) {
+        payload.password = data.password
+      }
+
+      if (data.id) {
+        await axios.put(`${BACKEND_URL}/actualizarUsuario/${data.id}`, payload)
+        await cargarUsuarios()
+        return { ok: true }
       }
 
       await axios.post(`${BACKEND_URL}/insertarUsuario`, payload)
       await cargarUsuarios()
       return { ok: true }
     } catch (error) {
-      console.error("No se pudo registrar el usuario", error)
+      console.error("No se pudo guardar el usuario", error)
       return {
         ok: false,
-        error: error.response?.data?.error || "No se pudo registrar el usuario.",
+        error: error.response?.data?.error || "No se pudo guardar el usuario.",
+      }
+    }
+  }
+
+  async function darDeBajaUsuario(id, activo = false) {
+    const usuarioActual = usuarios.find((u) => u.id === id)
+    if (!usuarioActual) {
+      return { ok: false, error: "Usuario no encontrado." }
+    }
+
+    try {
+      await axios.put(`${BACKEND_URL}/darDeBajaUsuario/${id}`, {
+        activo,
+      })
+      await cargarUsuarios()
+      return { ok: true }
+    } catch (error) {
+      console.error("No se pudo dar de baja al usuario", error)
+      return {
+        ok: false,
+        error: error.response?.data?.error || "No se pudo dar de baja al usuario.",
       }
     }
   }
@@ -208,6 +241,7 @@ export function AppProvider({ children }) {
       historial,
       guardarCliente,
       guardarUsuario,
+      darDeBajaUsuario,
       guardarPrenda,
       guardarPedido,
       cambiarEstadoPedido,

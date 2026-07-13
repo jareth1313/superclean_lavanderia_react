@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pencil } from "lucide-react"
+import { Pencil, UserMinus } from "lucide-react"
 import { useApp } from "../context/AppContext"
 import { PageHeader } from "../components/layout/AppLayout"
 import { DataTable } from "../components/ui/DataTable"
@@ -15,21 +15,37 @@ const empty = { nombre: "", apaterno: "", amaterno: "", usuario: "", password: "
 const roles = ["Administrador", "Empleado"]
 
 export default function Usuarios() {
-  const { usuarios, guardarUsuario } = useApp()
+  const { auth, usuarios, guardarUsuario, darDeBajaUsuario } = useApp()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(empty)
+  const isAdmin = auth?.rol === "Administrador"
 
   function openNuevo() {
+    if (!isAdmin) return
     setForm({ ...empty })
     setOpen(true)
   }
+  
   function openEditar(row) {
+    if (!isAdmin) return
     setForm({ ...row })
     setOpen(true)
   }
+
   async function handleSubmit(e) {
     e.preventDefault()
     const result = await guardarUsuario(form)
+    if (result?.ok) {
+      setOpen(false)
+    }
+  }
+
+  async function handleDarDeBaja(row) {
+    if (!isAdmin || !row?.id) return
+    const confirmacion = window.confirm(`¿Deseas dar de baja a ${row.nombre || row.usuario}?`)
+    if (!confirmacion) return
+
+    const result = await darDeBajaUsuario(row.id, false)
     if (result?.ok) {
       setOpen(false)
     }
@@ -42,13 +58,19 @@ export default function Usuarios() {
     { key: "activo", header: "Estado", render: (r) => <EstadoBadge activo={r.activo} /> },
     {
       key: "acciones",
-      header: "",
-      className: "text-right",
-      render: (r) => (
-        <Button variant="outline" size="sm" onClick={() => openEditar(r)}>
-          <Pencil className="h-4 w-4" /> Editar
-        </Button>
-      ),
+      header: "Acciones",
+      className: "text-center",
+      render: (r) =>
+        isAdmin ? (
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => openEditar(r)}>
+              <Pencil className="h-4 w-4" /> Editar
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => handleDarDeBaja(r)}>
+              <UserMinus className="h-4 w-4" /> Dar de baja
+            </Button>
+          </div>
+        ) : null,
     },
   ]
 
@@ -61,7 +83,7 @@ export default function Usuarios() {
         columns={columns}
         data={usuarios}
         searchKeys={["nombre", "usuario", "email", "rol"]}
-        onAdd={openNuevo}
+        onAdd={isAdmin ? openNuevo : undefined}
         addLabel="Nuevo usuario"
       />
 
