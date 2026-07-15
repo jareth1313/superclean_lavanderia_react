@@ -58,7 +58,7 @@ export function Sidebar({ open, onClose }) {
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-secondary-foreground/70 hover:bg-white/10 lg:hidden"
+            className="cursor-pointer rounded-md p-1 text-secondary-foreground/70 hover:bg-white/10 lg:hidden"
             aria-label="Cerrar menu"
           >
             <X className="h-5 w-5" />
@@ -102,7 +102,7 @@ export function Sidebar({ open, onClose }) {
           </div>
           <button
             onClick={handleLogout}
-            className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-secondary-foreground/70 transition-colors hover:bg-white/10 hover:text-secondary-foreground"
+            className="mt-1 flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-secondary-foreground/70 transition-colors hover:bg-white/10 hover:text-secondary-foreground"
           >
             <LogOut className="h-[18px] w-[18px]" />
             Cerrar sesion

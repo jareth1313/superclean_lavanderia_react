@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import { uid } from "../lib/utils"
+
+axios.defaults.withCredentials = true
 import {
-  seedClientes,
   seedUsuarios,
   seedPedidos,
   seedHistorial,
@@ -13,7 +14,7 @@ const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
   const [auth, setAuth] = useState(null)
-  const [clientes, setClientes] = useState(seedClientes)
+  const [clientes, setClientes] = useState([])
   const [usuarios, setUsuarios] = useState([])
   const [prendas, setPrendas] = useState([])
   const [pedidos, setPedidos] = useState(seedPedidos)
@@ -52,10 +53,36 @@ export function AppProvider({ children }) {
     } catch (error) {
       console.error("No se pudieron cargar las prendas", error)
       setPrendas([])
+  async function cargarClientes() {
+    try {
+      const { data } = await axios.get(`${BACKEND_URL}/obtenerclientes`)
+      const normalizados = (Array.isArray(data) ? data : []).map((c) => {
+        const nombres = c.nombres ?? ""
+        const apaterno = c.apaterno ?? ""
+        const amaterno = c.amaterno ?? ""
+        const nombreCompleto = [nombres, apaterno, amaterno].filter(Boolean).join(" ")
+
+        return {
+          id: c.pk_cliente ?? c.id,
+          // nombre se usa para mostrar en tablas/selects.
+          nombre: nombreCompleto || c.nombre || "",
+          // nombres se usa para el formulario de edicion/guardado sin duplicar apellidos.
+          nombres,
+          apaterno,
+          amaterno,
+          activo: c.estatus_cliente === 1 || c.activo === 1 || c.activo === true,
+          creado: c.creado ?? c.fecha_registro ?? c.created_at ?? new Date().toISOString(),
+        }
+      })
+      setClientes(normalizados)
+    } catch (error) {
+      console.error("No se pudieron cargar los clientes", error)
+      setClientes([])
     }
   }
 
   useEffect(() => {
+    cargarClientes()
     cargarUsuarios()
     cargarPrendas()
   }, [])
@@ -75,16 +102,21 @@ export function AppProvider({ children }) {
   }
 
   // ---- Auth simulado ----
-  function login(usuario, password) {
-    const found = seedUsuarios.find(
-      (u) => u.usuario === usuario && u.activo,
-    )
-    // Credenciales de demo: cualquier usuario activo + password "demo123"
-    if (found && password === "demo123") {
-      setAuth(found)
-      return { ok: true }
+  async function login(usuario, password) {
+    // Try backend login first
+    try {
+      const { data } = await axios.post(`${BACKEND_URL}/login`, { usuario, password }, { withCredentials: true })
+      if (data?.ok) {
+        // Normalize minimal auth shape
+        const u = data.user
+        setAuth({ id: u.id, usuario: u.usuario, rol: u.rol })
+        return { ok: true }
+      }
+      return { ok: false, error: data?.error || 'Usuario o contrasena incorrectos.' }
+    } catch (error) {
+      console.error('Login error', error)
+      return { ok: false, error: error.response?.data?.error || error.message || 'Error al iniciar sesion.' }
     }
-    return { ok: false, error: "Usuario o contrasena incorrectos." }
   }
 
   function logout() {
@@ -92,42 +124,89 @@ export function AppProvider({ children }) {
   }
 
   // ---- Clientes ----
-  function guardarCliente(data) {
-    if (data.id) {
-      setClientes((prev) => prev.map((c) => (c.id === data.id ? { ...c, ...data } : c)))
-      registrarHistorial("Clientes", "Edicion", `Se actualizo el cliente ${data.nombre}`)
-    } else {
-      const nuevo = { ...data, id: uid("cli"), creado: new Date().toISOString() }
-      setClientes((prev) => [nuevo, ...prev])
-      registrarHistorial("Clientes", "Creacion", `Cliente ${data.nombre} registrado`)
+  async function guardarCliente(data) {
+    try {
+      const payload = {
+        nombre: data.nombre,
+        apaterno: data.apaterno ?? "",
+        amaterno: data.amaterno ?? "",
+        activo: data.activo,
+      }
+
+      if (data.id) {
+        await axios.put(`${BACKEND_URL}/actualizarCliente/${data.id}`, payload)
+        registrarHistorial("Clientes", "Edicion", `Se actualizo el cliente ${data.nombre}`)
+      } else {
+        await axios.post(`${BACKEND_URL}/insertarCliente`, payload)
+        registrarHistorial("Clientes", "Creacion", `Cliente ${data.nombre} registrado`)
+      }
+
+      await cargarClientes()
+      return { ok: true }
+    } catch (error) {
+      console.error("No se pudo guardar el cliente", error)
+      return {
+        ok: false,
+        error:
+          error.response?.data?.detail ||
+          error.response?.data?.error ||
+          error.message ||
+          "No se pudo guardar el cliente.",
+      }
     }
   }
 
   // ---- Usuarios ----
   async function guardarUsuario(data) {
-    if (data.id) {
-      setUsuarios((prev) => prev.map((u) => (u.id === data.id ? { ...u, ...data } : u)))
-      return { ok: true }
-    }
-
     try {
       const payload = {
         nombres: data.nombre,
         apaterno: data.apaterno ?? "",
         amaterno: data.amaterno ?? "",
         usuario: data.usuario,
-        password: data.password,
         rol: data.rol,
+        activo: data.activo ?? true,
+      }
+
+      if (data.password !== undefined && data.password !== null) {
+        payload.password = data.password
+      }
+
+      if (data.id) {
+        await axios.put(`${BACKEND_URL}/actualizarUsuario/${data.id}`, payload)
+        await cargarUsuarios()
+        return { ok: true }
       }
 
       await axios.post(`${BACKEND_URL}/insertarUsuario`, payload)
       await cargarUsuarios()
       return { ok: true }
     } catch (error) {
-      console.error("No se pudo registrar el usuario", error)
+      console.error("No se pudo guardar el usuario", error)
       return {
         ok: false,
-        error: error.response?.data?.error || "No se pudo registrar el usuario.",
+        error: error.response?.data?.error || "No se pudo guardar el usuario.",
+      }
+    }
+  }
+
+  async function darDeBajaUsuario(id, activo = false) {
+    const usuarioActual = usuarios.find((u) => u.id === id)
+    if (!usuarioActual) {
+      return { ok: false, error: "Usuario no encontrado." }
+    }
+
+    try {
+      await axios.put(`${BACKEND_URL}/darDeBajaUsuario/${id}`, {
+        activo,
+      })
+      await cargarUsuarios()
+      return { ok: true }
+    } catch (error) {
+      console.error("No se pudo dar de baja al usuario", error)
+      return {
+        ok: false,
+        error: error.response?.data?.error || "No se pudo dar de baja al usuario.",
       }
     }
   }
@@ -197,6 +276,7 @@ export function AppProvider({ children }) {
       historial,
       guardarCliente,
       guardarUsuario,
+      darDeBajaUsuario,
       guardarPrenda,
       guardarPedido,
       cambiarEstadoPedido,
