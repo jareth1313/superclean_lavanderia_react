@@ -64,6 +64,69 @@ app.post('/insertarUsuario', async (req, res) => {
     }
 });
 
+// ---- Prendas ----
+app.get('/test-db', async (req, res) => {
+    try {
+        const [structure] = await query.testConnection();
+        res.json({ ok: true, structure });
+    } catch (error) {
+        console.error("Error en /test-db:", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/obtenerPrendas', async (req, res) => {
+    try {
+        const prendas = await query.obtenerPrendas();
+        res.json(prendas);
+    } catch (error) {
+        console.error("Error en la ruta /obtenerPrendas:", error);
+        res.status(500).json({ error: 'Error al obtener las prendas' });
+    }
+});
+
+app.post('/insertarPrenda', async (req, res) => {
+    try {
+        const { nombre, descripcion, precio } = req.body;
+
+        if (!nombre || !precio) {
+            return res.status(400).json({ error: 'Faltan datos obligatorios' });
+        }
+
+        const resultado = await query.insertarPrenda(nombre, descripcion || '', Number(precio));
+        res.status(201).json({ message: 'Prenda insertada correctamente', id: resultado });
+    } catch (error) {
+        console.error("Error en /insertarPrenda:");
+        console.error("  Mensaje:", error.message);
+        console.error("  Código:", error.code);
+        console.error("  SQL:", error.sql);
+        console.error("  Datos recibidos:", req.body);
+        
+        res.status(500).json({ 
+            error: 'Error al insertar la prenda',
+            details: error.message,
+            code: error.code
+        });
+    }
+});
+
+app.put('/actualizarPrenda/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nombre, descripcion, precio, activo } = req.body;
+
+        if (!nombre || !precio) {
+            return res.status(400).json({ error: 'Faltan datos obligatorios' });
+        }
+
+        await query.actualizarPrenda(id, nombre, descripcion || '', Number(precio), activo ? 1 : 0);
+        res.json({ message: 'Prenda actualizada correctamente' });
+    } catch (error) {
+        console.error("Error en la ruta /actualizarPrenda:", error);
+        res.status(500).json({ error: 'Error al actualizar la prenda' });
+    }
+});
+
 // app.listen inicia el servidor en el puerto definido en PORT y muestra un mensaje en la consola.
 // La función de flecha () => {} es una función anónima que se ejecuta cuando el servidor se inicia correctamente.
 app.listen(PORT, () => {

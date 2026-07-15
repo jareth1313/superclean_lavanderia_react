@@ -4,7 +4,6 @@ import { uid } from "../lib/utils"
 import {
   seedClientes,
   seedUsuarios,
-  seedPrendas,
   seedPedidos,
   seedHistorial,
 } from "../lib/seed-data"
@@ -16,7 +15,7 @@ export function AppProvider({ children }) {
   const [auth, setAuth] = useState(null)
   const [clientes, setClientes] = useState(seedClientes)
   const [usuarios, setUsuarios] = useState([])
-  const [prendas, setPrendas] = useState(seedPrendas)
+  const [prendas, setPrendas] = useState([])
   const [pedidos, setPedidos] = useState(seedPedidos)
   const [historial, setHistorial] = useState(seedHistorial)
 
@@ -39,8 +38,26 @@ export function AppProvider({ children }) {
     }
   }
 
+  async function cargarPrendas() {
+    try {
+      const { data } = await axios.get(`${BACKEND_URL}/obtenerPrendas`)
+      const normalizadas = (Array.isArray(data) ? data : []).map((p) => ({
+        id: p.id ?? p.pk_prenda,
+        nombre: p.nombre ?? p.nom_prenda,
+        descripcion: p.descripcion ?? p.descripcion_prenda ?? "",
+        precio: p.precio ?? p.precio_prenda ?? 0,
+        activo: p.activo === 1 || p.activo === true || p.estatus_prenda === 1
+      }))
+      setPrendas(normalizadas)
+    } catch (error) {
+      console.error("No se pudieron cargar las prendas", error)
+      setPrendas([])
+    }
+  }
+
   useEffect(() => {
     cargarUsuarios()
+    cargarPrendas()
   }, [])
 
   function registrarHistorial(modulo, accion, descripcion) {
@@ -116,14 +133,35 @@ export function AppProvider({ children }) {
   }
 
   // ---- Prendas ----
-  function guardarPrenda(data) {
-    if (data.id) {
-      setPrendas((prev) => prev.map((p) => (p.id === data.id ? { ...p, ...data } : p)))
-      registrarHistorial("Tipos de prenda", "Edicion", `Se actualizo ${data.nombre}`)
-    } else {
-      const nuevo = { ...data, id: uid("prd"), creado: new Date().toISOString() }
-      setPrendas((prev) => [nuevo, ...prev])
-      registrarHistorial("Tipos de prenda", "Creacion", `Tipo de prenda ${data.nombre} registrado`)
+  async function guardarPrenda(data) {
+    try {
+      if (data.id) {
+        // Actualizar prenda existente
+        await axios.put(`${BACKEND_URL}/actualizarPrenda/${data.id}`, {
+          nombre: data.nombre,
+          descripcion: data.descripcion || "",
+          precio: data.precio,
+          activo: data.activo
+        })
+        registrarHistorial("Tipos de prenda", "Edicion", `Se actualizo ${data.nombre}`)
+      } else {
+        // Insertar nueva prenda
+        await axios.post(`${BACKEND_URL}/insertarPrenda`, {
+          nombre: data.nombre,
+          descripcion: data.descripcion || "",
+          precio: data.precio
+        })
+        registrarHistorial("Tipos de prenda", "Creacion", `Tipo de prenda ${data.nombre} registrado`)
+      }
+      // Recargar prendas desde BD
+      await cargarPrendas()
+      return { ok: true }
+    } catch (error) {
+      console.error("Error al guardar prenda:", error.response?.data || error.message)
+      return {
+        ok: false,
+        error: error.response?.data?.details || error.response?.data?.error || "No se pudo guardar la prenda.",
+      }
     }
   }
 
