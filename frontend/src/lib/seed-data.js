@@ -15,15 +15,6 @@ export const seedUsuarios = [
   { id: uid("usr"), nombre: "Laura Vega", usuario: "lvega", email: "laura.vega@lavapos.com", rol: "Cajero", activo: true, creado: "2026-05-05T09:45:00" },
 ]
 
-export const seedPrendas = [
-  { id: uid("prd"), nombre: "Camisa", categoria: "Ropa", servicio: "Lavado y planchado", precio: 25, activo: true, creado: "2026-01-12T08:00:00" },
-  { id: uid("prd"), nombre: "Pantalon", categoria: "Ropa", servicio: "Lavado en seco", precio: 35, activo: true, creado: "2026-01-12T08:05:00" },
-  { id: uid("prd"), nombre: "Vestido", categoria: "Ropa", servicio: "Lavado en seco", precio: 60, activo: true, creado: "2026-01-12T08:10:00" },
-  { id: uid("prd"), nombre: "Edredon matrimonial", categoria: "Hogar", servicio: "Lavado especial", precio: 120, activo: true, creado: "2026-01-12T08:15:00" },
-  { id: uid("prd"), nombre: "Cortinas", categoria: "Hogar", servicio: "Lavado especial", precio: 90, activo: false, creado: "2026-01-12T08:20:00" },
-  { id: uid("prd"), nombre: "Traje completo", categoria: "Ropa", servicio: "Lavado en seco", precio: 110, activo: true, creado: "2026-01-12T08:25:00" },
-]
-
 function makePedido(cliente, estado, fecha, items) {
   const total = items.reduce((s, it) => s + it.precio * it.cantidad, 0)
   return { id: uid("ped"), folio: "PED-" + Math.floor(1000 + Math.random() * 9000), cliente, estado, fecha, items, total }

@@ -149,6 +149,70 @@ async function actualizarCliente(pkCliente, activo){
     return rows;
 }
 
+// ---- Prendas ----
+async function obtenerPrendas(){
+    const [rows] = await db.query(`
+        SELECT
+            pk_prenda AS id,
+            nom_prenda AS nombre,
+            COALESCE(descripcion_prenda, '') AS descripcion,
+            precio_prenda AS precio,
+            COALESCE(estatus_prenda, 1) AS activo
+        FROM prenda
+        ORDER BY nom_prenda ASC
+    `);
+    return rows.map(p => ({
+        ...p,
+        activo: p.activo === 1 || p.activo === true
+    }));
+}
+
+async function insertarPrenda(nomPrenda, descripcion, precio){
+    try {
+        // Convertir valores a tipos correctos
+        const nom = String(nomPrenda).trim();
+        const desc = String(descripcion || '').trim();
+        const prec = parseFloat(precio) || 0;
+        
+        if (!nom) throw new Error('El nombre de la prenda es obligatorio');
+        if (prec <= 0) throw new Error('El precio debe ser mayor a 0');
+        
+        const [rows] = await db.query(
+            'INSERT INTO prenda (nom_prenda, descripcion_prenda, precio_prenda, estatus_prenda) VALUES (?, ?, ?, 1)',
+            [nom, desc, prec]
+        );
+        return rows.insertId;
+    } catch (error) {
+        console.error("❌ Error en insertarPrenda:", {
+            message: error.message,
+            code: error.code,
+            sql: error.sql
+        });
+        throw error;
+    }
+}
+
+async function actualizarPrenda(pkPrenda, nomPrenda, descripcion, precio, estatus){
+    try {
+        const nom = String(nomPrenda).trim();
+        const desc = String(descripcion || '').trim();
+        const prec = parseFloat(precio) || 0;
+        const est = estatus ? 1 : 0;
+        
+        const [rows] = await db.query(
+            'UPDATE prenda SET nom_prenda = ?, descripcion_prenda = ?, precio_prenda = ?, estatus_prenda = ? WHERE pk_prenda = ?',
+            [nom, desc, prec, est, pkPrenda]
+        );
+        return rows;
+    } catch (error) {
+        console.error("❌ Error en actualizarPrenda:", error.message);
+        throw error;
+    }
+}
+
+async function testConnection(){
+    const [structure] = await db.query('DESCRIBE prenda');
+    return structure;
 async function obtenerClientePorId(pkCliente){
     const [rows] = await db.query('SELECT pk_cliente, fk_persona FROM cliente WHERE pk_cliente = ?', [pkCliente]);
     return rows[0];
@@ -160,6 +224,11 @@ module.exports = {
     obtenerClientes,
     obtenerUsuarioPorNombre,
     insertarUsuario,
+    insertarPersona,
+    obtenerPrendas,
+    insertarPrenda,
+    actualizarPrenda,
+    testConnection
     actualizarUsuario,
     insertarPersona,
     insertarCliente,

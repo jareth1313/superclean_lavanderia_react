@@ -9,14 +9,13 @@ import { Field, Input, Select } from "../components/ui/Field"
 import { EstadoBadge, Badge } from "../components/ui/Badge"
 import { formatCurrency } from "../lib/utils"
 
-const empty = { nombre: "", categoria: "Ropa", servicio: "Lavado y planchado", precio: "", activo: true }
-const categorias = ["Ropa", "Hogar", "Calzado", "Otro"]
-const servicios = ["Lavado y planchado", "Lavado en seco", "Lavado especial", "Solo planchado", "Solo lavado"]
+const empty = { nombre: "", descripcion: "", precio: "", activo: true }
 
 export default function Prendas() {
   const { prendas, guardarPrenda } = useApp()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(empty)
+  const [loading, setLoading] = useState(false)
 
   function openNuevo() {
     setForm(empty)
@@ -26,16 +25,21 @@ export default function Prendas() {
     setForm({ ...row, precio: String(row.precio) })
     setOpen(true)
   }
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    guardarPrenda({ ...form, precio: Number(form.precio) || 0 })
-    setOpen(false)
+    setLoading(true)
+    const result = await guardarPrenda({ ...form, precio: Number(form.precio) || 0 })
+    setLoading(false)
+    if (result.ok) {
+      setOpen(false)
+    } else {
+      alert(result.error)
+    }
   }
 
   const columns = [
     { key: "nombre", header: "Tipo de prenda", render: (r) => <span className="font-medium">{r.nombre}</span> },
-    { key: "categoria", header: "Categoria", render: (r) => <Badge tone="neutral">{r.categoria}</Badge> },
-    { key: "servicio", header: "Servicio", render: (r) => <span className="text-muted-foreground">{r.servicio}</span> },
+    { key: "descripcion", header: "Descripción", render: (r) => <span className="text-sm text-muted-foreground">{r.descripcion || "-"}</span> },
     { key: "precio", header: "Precio", render: (r) => <span className="font-medium">{formatCurrency(r.precio)}</span> },
     { key: "activo", header: "Estado", render: (r) => <EstadoBadge activo={r.activo} /> },
     {
@@ -52,13 +56,13 @@ export default function Prendas() {
 
   return (
     <div>
-      <PageHeader title="Tipos de prenda" description="Define las prendas y servicios disponibles con su precio." />
+      <PageHeader title="Tipos de prenda" description="Define las prendas disponibles con su descripción y precio." />
 
       <DataTable
         title="Catalogo de prendas"
         columns={columns}
         data={prendas}
-        searchKeys={["nombre", "categoria", "servicio"]}
+        searchKeys={["nombre", "descripcion"]}
         onAdd={openNuevo}
         addLabel="Nuevo tipo"
       />
@@ -71,7 +75,7 @@ export default function Prendas() {
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button type="submit" form="form-prenda">Guardar</Button>
+            <Button type="submit" form="form-prenda" disabled={loading}>{loading ? "Guardando..." : "Guardar"}</Button>
           </div>
         }
       >
@@ -80,31 +84,24 @@ export default function Prendas() {
             <Input id="p-nombre" value={form.nombre} required
               onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Categoria" htmlFor="p-cat">
-              <Select id="p-cat" value={form.categoria}
-                onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
-                {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
+          <Field label="Descripción" htmlFor="p-desc">
+            <Input id="p-desc" value={form.descripcion}
+              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              placeholder="Ej: Blusa de algodón, Pantalón de mezclilla" />
+          </Field>
+          <Field label="Precio (MXN)" htmlFor="p-precio">
+            <Input id="p-precio" type="number" min="0" step="1" value={form.precio} required
+              onChange={(e) => setForm({ ...form, precio: e.target.value })} />
+          </Field>
+          {form.id && (
+            <Field label="Estado" htmlFor="p-estado">
+              <Select id="p-estado" value={String(form.activo)}
+                onChange={(e) => setForm({ ...form, activo: e.target.value === "true" })}>
+                <option value="true">Activo</option>
+                <option value="false">Inactivo</option>
               </Select>
             </Field>
-            <Field label="Precio (MXN)" htmlFor="p-precio">
-              <Input id="p-precio" type="number" min="0" step="1" value={form.precio} required
-                onChange={(e) => setForm({ ...form, precio: e.target.value })} />
-            </Field>
-          </div>
-          <Field label="Servicio" htmlFor="p-serv">
-            <Select id="p-serv" value={form.servicio}
-              onChange={(e) => setForm({ ...form, servicio: e.target.value })}>
-              {servicios.map((s) => <option key={s} value={s}>{s}</option>)}
-            </Select>
-          </Field>
-          <Field label="Estado" htmlFor="p-estado">
-            <Select id="p-estado" value={String(form.activo)}
-              onChange={(e) => setForm({ ...form, activo: e.target.value === "true" })}>
-              <option value="true">Activo</option>
-              <option value="false">Inactivo</option>
-            </Select>
-          </Field>
+          )}
         </form>
       </Modal>
     </div>
